@@ -49,6 +49,7 @@ import {
 } from "./claimableBalance";
 import { estimateFee } from "./estimateFee";
 import type { FeeEstimate } from "./estimateFee";
+import { buildDataEntryOperation } from "../account/dataEntries";
 import type { MemoType } from "./types";
 import type { ClaimPredicateInput } from "./types";
 
@@ -162,6 +163,8 @@ export interface ComposeBuilder {
   addClaimableBalance(params: ComposeClaimableBalanceParams): ComposeBuilder;
   addClaimClaimableBalance(balanceId: string): ComposeBuilder;
   addBumpSequence(bumpToSequence: string): ComposeBuilder;
+  addSetDataEntry(key: string, value: string): ComposeBuilder;
+  addDeleteDataEntry(key: string): ComposeBuilder;
   addMemo(memo: string, memoType?: MemoType): ComposeBuilder;
   /** Enable automatic fee estimation; `{ mode: "high" }` prefers the fast tier. */
   estimateFee(mode: FeeEstimateMode): ComposeBuilder;
@@ -602,6 +605,18 @@ export function compose(
         kind: "bumpSequence",
         build: () => buildBumpSequenceOperation(bumpToSequence),
       });
+      return builder;
+    },
+
+    addSetDataEntry(key, value) {
+      const result = buildDataEntryOperation(key, value);
+      push({ kind: "setDataEntry", build: () => result });
+      return builder;
+    },
+
+    addDeleteDataEntry(key) {
+      const result = buildDataEntryOperation(key, null);
+      push({ kind: "deleteDataEntry", build: () => result });
       return builder;
     },
 

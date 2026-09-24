@@ -643,3 +643,6 @@ export type {
   DecodingResult,
   TransactionDelta,
 } from "./xdrEncodingTypes";
+
+export { buildSetDataEntryTransaction, buildDeleteDataEntryTransaction } from "./dataEntry";
+export type { DataEntryTransactionOptions } from "./dataEntry";
