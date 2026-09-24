@@ -85,6 +85,15 @@ export type {
 } from "./subscriptions";
 export type { BalanceAlertConfig } from "./createBalanceAlert";
 
+export { getSigners, getThresholds, analyzeSigningRequirement } from "./signers";
+export type { AccountSigner, AccountSigners, AccountThresholds, SigningOperation, SigningRequirement } from "./signers";
+export { getPaymentHistory } from "./paymentHistory";
+export type { PaymentInfo, PaymentPage, PaymentHistoryOptions } from "./paymentHistory";
+export { getEffects } from "./getEffects";
+export type { EffectInfo, EffectsPage, GetEffectsOptions } from "./getEffects";
+export { getDataEntries } from "./dataEntries";
+export type { AccountDataEntries } from "./dataEntries";
+
 
 export { forecastBalance, forecastAccountBalance } from "./balanceForecast";
 export type {
