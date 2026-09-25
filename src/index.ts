@@ -1329,3 +1329,14 @@ export {
   STELLAR_MAX_ASSET_CODE_LENGTH,
   STELLAR_MIN_ASSET_CODE_LENGTH,
 } from "./shared/validation";
+
+// ─── Account signer, history, effects, and data entries (#556/#557/#558/#559) ─
+export { getSigners, getThresholds, analyzeSigningRequirement } from "./account/signers";
+export type { AccountSigner, AccountSigners, AccountThresholds, SigningOperation, SigningRequirement } from "./account/signers";
+export { getPaymentHistory } from "./account/paymentHistory";
+export type { PaymentInfo, PaymentPage, PaymentHistoryOptions } from "./account/paymentHistory";
+export { getEffects } from "./account/getEffects";
+export type { EffectInfo, EffectsPage, GetEffectsOptions } from "./account/getEffects";
+export { getDataEntries } from "./account/dataEntries";
+export type { AccountDataEntries } from "./account/dataEntries";
+export { buildSetDataEntryTransaction, buildDeleteDataEntryTransaction } from "./transaction/dataEntry";
