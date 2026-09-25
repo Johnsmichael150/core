@@ -21,6 +21,8 @@ import { getAccount } from "../account/getAccount";
 import { getAccountsBatch } from "../account/getAccountsBatch";
 import { getBalances } from "../account/getBalances";
 import { getAssetBalances } from "../account/getAssetBalances";
+import { getOffers, getTrades } from "../account/dexActivity";
+import type { DexActivityOptions, DexActivityResult, OfferInfo, TradeInfo } from "../account/dexActivity";
 import { streamAccount } from "../account/streamAccount";
 import { setSponsor, removeSponsor } from "../account/sponsorship";
 import { getSigners, getThresholds, analyzeSigningRequirement } from "../account/signers";
@@ -50,6 +52,7 @@ import { streamTransactions } from "../transaction/streamTransactions";
 import { exportTransactionHistory } from "../transaction/exportTransactionHistory";
 import { queryTransactionHistory } from "../transaction/queryTransactionHistory";
 import { validateDestination } from "../transaction/validateDestination";
+import { buildSetOptionsTransaction } from "../transaction/setOptions";
 import type {
   DestinationValidationResult,
   ValidateDestinationOptions,
@@ -132,6 +135,7 @@ import type {
   CreateClaimableBalanceParams,
   ClaimClaimableBalanceParams,
   BumpSequenceParams,
+  SetOptionsParams,
 } from "../transaction/types";
 import type {
   FeeEstimate,
@@ -363,12 +367,8 @@ export interface SorokitClient {
     ): SorokitResult<SponsorshipResult>;
     /** Build operations to remove sponsorship from an account */
     removeSponsor(account: string): SorokitResult<SponsorshipResult>;
-    getSigners(publicKey: string, timeoutMs?: number): Promise<SorokitResult<import("../account/signers").AccountSigners>>;
-    getThresholds(publicKey: string, timeoutMs?: number): Promise<SorokitResult<import("../account/signers").AccountThresholds>>;
-    analyzeSigningRequirement(publicKey: string, operation: import("../account/signers").SigningOperation, timeoutMs?: number): Promise<SorokitResult<import("../account/signers").SigningRequirement>>;
-    getPaymentHistory(publicKey: string, options?: import("../account/paymentHistory").PaymentHistoryOptions, timeoutMs?: number): Promise<SorokitResult<import("../account/paymentHistory").PaymentPage>>;
-    getEffects(publicKey: string, options?: import("../account/getEffects").GetEffectsOptions, timeoutMs?: number): Promise<SorokitResult<import("../account/getEffects").EffectsPage>>;
-    getDataEntries(publicKey: string, timeoutMs?: number): Promise<SorokitResult<import("../account/dataEntries").AccountDataEntries>>;
+    getOffers(publicKey: string, options?: DexActivityOptions, timeoutMs?: number): Promise<SorokitResult<DexActivityResult<OfferInfo>>>;
+    getTrades(publicKey: string, options?: DexActivityOptions, timeoutMs?: number): Promise<SorokitResult<DexActivityResult<TradeInfo>>>;
   };
 
   readonly transaction: {
@@ -415,8 +415,11 @@ export interface SorokitClient {
       params: BumpSequenceParams,
       timeoutMs?: number,
     ): Promise<SorokitResult<string>>;
-    buildSetDataEntry(sourcePublicKey: string, key: string, value: string, timeoutMs?: number): Promise<SorokitResult<string>>;
-    buildDeleteDataEntry(sourcePublicKey: string, key: string, timeoutMs?: number): Promise<SorokitResult<string>>;
+    buildSetOptions(
+      sourcePublicKey: string,
+      params: SetOptionsParams,
+      timeoutMs?: number,
+    ): Promise<SorokitResult<string>>;
     /**
      * Start a fluent multi-operation transaction builder bound to this client's
      * network config. Call `.build()` on the returned builder for the XDR (#542).
@@ -1182,12 +1185,22 @@ export function createSorokitClient(
       isValidContractId: (id) => isValidContractId(id),
       setSponsor: (account, sponsor) => applyTx(setSponsor(account, sponsor)),
       removeSponsor: (account) => applyTx(removeSponsor(account)),
-      getSigners: (publicKey, timeoutMs) => guard("account_get", timeoutMs, () => getSigners(horizonUrl, publicKey)).then(applyTx),
-      getThresholds: (publicKey, timeoutMs) => guard("account_get", timeoutMs, () => getThresholds(horizonUrl, publicKey)).then(applyTx),
-      analyzeSigningRequirement: (publicKey, operation, timeoutMs) => guard("account_get", timeoutMs, () => analyzeSigningRequirement(horizonUrl, publicKey, operation)).then(applyTx),
-      getPaymentHistory: (publicKey, options, timeoutMs) => guard("account_get", timeoutMs, () => getPaymentHistory(horizonUrl, publicKey, options)).then(applyTx),
-      getEffects: (publicKey, options, timeoutMs) => guard("account_get", timeoutMs, () => getEffects(horizonUrl, publicKey, options)).then(applyTx),
-      getDataEntries: (publicKey, timeoutMs) => guard("account_get", timeoutMs, () => getDataEntries(horizonUrl, publicKey)).then(applyTx),
+      getOffers: (publicKey, options, timeoutMs) =>
+        guard("account_get_offers", timeoutMs, () =>
+          withErrorHandling(
+            errorHandler,
+            { functionName: "account.getOffers", params: { publicKey, options } },
+            () => getOffers(horizonUrl, publicKey, options),
+          ).then(applyTx),
+        ),
+      getTrades: (publicKey, options, timeoutMs) =>
+        guard("account_get_trades", timeoutMs, () =>
+          withErrorHandling(
+            errorHandler,
+            { functionName: "account.getTrades", params: { publicKey, options } },
+            () => getTrades(horizonUrl, publicKey, options),
+          ).then(applyTx),
+        ),
     },
 
     transaction: {
@@ -1342,14 +1355,14 @@ export function createSorokitClient(
             },
           ).then(applyTx),
         ),
-      buildSetDataEntry: (sourcePublicKey, key, value, timeoutMs) =>
+      buildSetOptions: (sourcePublicKey, params, timeoutMs) =>
         guard("tx_build", timeoutMs, () =>
-          buildSetDataEntryTransaction(horizonUrl, networkConfig, sourcePublicKey, key, value),
-        ).then(applyTx),
-      buildDeleteDataEntry: (sourcePublicKey, key, timeoutMs) =>
-        guard("tx_build", timeoutMs, () =>
-          buildDeleteDataEntryTransaction(horizonUrl, networkConfig, sourcePublicKey, key),
-        ).then(applyTx),
+          withErrorHandling(
+            errorHandler,
+            { functionName: "transaction.buildSetOptions", params: { sourcePublicKey, ...params } },
+            () => buildSetOptionsTransaction(horizonUrl, networkConfig, sourcePublicKey, params),
+          ).then(applyTx),
+        ),
       compose: (sourcePublicKey, options) => {
         logger.debug("transaction.compose", { sourcePublicKey });
         return compose(sourcePublicKey, networkConfig, options);

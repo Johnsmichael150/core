@@ -49,8 +49,7 @@ import {
 } from "./claimableBalance";
 import { estimateFee } from "./estimateFee";
 import type { FeeEstimate } from "./estimateFee";
-import { buildDataEntryOperation } from "../account/dataEntries";
-import type { MemoType } from "./types";
+import type { MemoType, SetOptionsParams } from "./types";
 import type { ClaimPredicateInput } from "./types";
 
 export type ComposeNetwork = ResolvedNetworkConfig | NetworkType;
@@ -163,8 +162,7 @@ export interface ComposeBuilder {
   addClaimableBalance(params: ComposeClaimableBalanceParams): ComposeBuilder;
   addClaimClaimableBalance(balanceId: string): ComposeBuilder;
   addBumpSequence(bumpToSequence: string): ComposeBuilder;
-  addSetDataEntry(key: string, value: string): ComposeBuilder;
-  addDeleteDataEntry(key: string): ComposeBuilder;
+  addSetOptions(params: SetOptionsParams): ComposeBuilder;
   addMemo(memo: string, memoType?: MemoType): ComposeBuilder;
   /** Enable automatic fee estimation; `{ mode: "high" }` prefers the fast tier. */
   estimateFee(mode: FeeEstimateMode): ComposeBuilder;
@@ -608,15 +606,32 @@ export function compose(
       return builder;
     },
 
-    addSetDataEntry(key, value) {
-      const result = buildDataEntryOperation(key, value);
-      push({ kind: "setDataEntry", build: () => result });
-      return builder;
-    },
-
-    addDeleteDataEntry(key) {
-      const result = buildDataEntryOperation(key, null);
-      push({ kind: "deleteDataEntry", build: () => result });
+    addSetOptions(params) {
+      const setOptions = {
+        ...(params.masterWeight !== undefined && { masterWeight: params.masterWeight }),
+        ...(params.lowThreshold !== undefined && { lowThreshold: params.lowThreshold }),
+        ...(params.medThreshold !== undefined && { medThreshold: params.medThreshold }),
+        ...(params.highThreshold !== undefined && { highThreshold: params.highThreshold }),
+        ...(params.homeDomain !== undefined && { homeDomain: params.homeDomain ?? "" }),
+        ...(params.inflationDest !== undefined && { inflationDest: params.inflationDest ?? undefined }),
+        ...(params.clearFlags !== undefined && { clearFlags: params.clearFlags }),
+      };
+      push({
+        kind: "setOptions",
+        build: () => {
+          try {
+            return ok(Operation.setOptions(setOptions));
+          } catch (cause) {
+            return err(SorokitErrorCode.TX_BUILD_FAILED, `Failed to build set options operation: ${toMessage(cause)}`, cause);
+          }
+        },
+      });
+      for (const signer of params.signers ?? []) {
+        push({
+          kind: "setOptionsSigner",
+          build: () => ok(Operation.setOptions({ signer: { ed25519PublicKey: signer.publicKey, weight: signer.weight } })),
+        });
+      }
       return builder;
     },
 
