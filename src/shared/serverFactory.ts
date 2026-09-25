@@ -61,17 +61,19 @@ export interface ServerOptions {
   signal?: AbortSignal | undefined;
 }
 
-/**
- * Wrap a fetch so that requests are aborted when the given signal fires,
- * composing with any traced fetch already configured.
- */
-function signalAwareFetch(signal: AbortSignal): NonNullable<typeof tracedFetch> {
+function endpointAwareFetch(
+  endpoint: string,
+  signal?: AbortSignal,
+): NonNullable<typeof tracedFetch> {
   const base = tracedFetch ?? globalThis.fetch.bind(globalThis);
-  return (input, init) =>
-    base(input, {
-      ...init,
-      signal: composeSignals(init?.signal ?? undefined, signal),
-    });
+  const pool = getEndpointPool(endpoint);
+  const fetcher = pool ? createFailoverFetch(pool, base) : base;
+  return signal
+    ? (input, init) => fetcher(input, {
+        ...init,
+        signal: composeSignals(init?.signal ?? undefined, signal),
+      })
+    : fetcher;
 }
 
 function composeSignals(
